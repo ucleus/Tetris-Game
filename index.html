@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Game Boy Tetris</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+  <script defer src="assets/js/gb_shader.js"></script>
+  <script defer src="assets/js/game.js"></script>
+</head>
+<body class="theme-original">
+  <div id="app">
+    <div class="gb-shell">
+      <div class="gb-top">
+        <div class="gb-speaker"></div>
+      </div>
+      <div class="gb-screen-wrap">
+        <canvas id="tetris" width="160" height="144"></canvas>
+        <!-- Three.js screen effect overlay -->
+        <div id="crt-overlay"></div>
+        <!-- Game status indicator -->
+        <div id="game-status" class="game-status hide">
+          <div class="title">PAUSED</div>
+        </div>
+        <div class="hud">
+          <div class="hud-col">
+            <div class="hud-box"><label>Score</label><span id="score">0</span></div>
+            <div class="hud-box"><label>Level</label><span id="level">1</span></div>
+            <div class="hud-box"><label>Lines</label><span id="lines">0</span></div>
+          </div>
+          <div class="hud-col">
+            <div class="hud-box"><label>Next</label><canvas id="next" width="48" height="48"></canvas></div>
+            <div class="hud-box"><label>Hold</label><canvas id="hold" width="48" height="48"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls: D-Pad + A/B + Start/Select (touch-friendly) -->
+      <div class="gb-controls">
+        <div class="dpad">
+          <button class="pad up" data-action="up" aria-label="Rotate piece">↑</button>
+          <button class="pad left" data-action="left" aria-label="Move piece left">←</button>
+          <button class="pad right" data-action="right" aria-label="Move piece right">→</button>
+          <button class="pad down" data-action="down" aria-label="Drop piece down">↓</button>
+        </div>
+        <div class="start-select">
+          <button class="btn-select" data-action="hold" aria-label="Hold current piece">Select</button>
+          <button class="btn-start" data-action="pause" aria-label="Pause or resume game">Start</button>
+        </div>
+        <div class="ab">
+          <button class="btn-a" data-action="rotate" aria-label="Rotate piece clockwise">A</button>
+          <button class="btn-b" data-action="hard" aria-label="Drop piece instantly">B</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top bar: auth, theme -->
+    <div class="topbar">
+      <div class="auth">
+        <span id="user-info" title="Current user"></span>
+        <button id="btn-help" title="Show game instructions">?</button>
+        <button id="btn-login" title="Sign in with email">Login</button>
+        <button id="btn-register" title="Create new account">Register</button>
+        <button id="btn-logout" class="hide" title="Sign out">Logout</button>
+      </div>
+      <div class="theme-picker">
+        <select id="theme" title="Choose visual theme">
+          <option value="">Theme</option>
+          <option value="original">Original</option>
+          <option value="red">Red</option>
+          <option value="pink">Pink</option>
+          <option value="purple">Purple</option>
+          <option value="babyblue">Baby Powder Blue</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Gate modal (5-min free play) -->
+    <div id="gate" class="modal hide">
+      <div class="modal-card">
+        <h2>Time's up!</h2>
+        <p>Enjoyed the demo? Sign in to keep playing and save your progress.</p>
+        <button id="gate-login">Sign In</button>
+        <button id="gate-register">Create Account</button>
+      </div>
+    </div>
+
+    <!-- Register modal -->
+    <div id="register" class="modal hide">
+      <form class="modal-card" id="registerForm" enctype="multipart/form-data">
+        <h2>Create Account</h2>
+        <label>Email<input type="email" name="email" required></label>
+        <label>Username<input name="username" required maxlength="32" pattern="[A-Za-z0-9_]+"></label>
+        <label>Real Name<input name="real_name" required></label>
+        <label>Avatar (PNG/JPG, optional)<input type="file" name="avatar" accept="image/png,image/jpeg"></label>
+        <label>Theme
+          <select name="theme">
+            <option value="">Theme</option>
+            <option value="original">Original</option>
+            <option value="red">Red</option>
+            <option value="pink">Pink</option>
+            <option value="purple">Purple</option>
+            <option value="babyblue">Baby Powder Blue</option>
+          </select>
+        </label>
+        <div class="row">
+          <button type="submit">Create</button>
+          <button type="button" data-close>Cancel</button>
+        </div>
+        <p class="small">Already have an account? <a href="#" id="swapToLogin">Sign in</a></p>
+      </form>
+    </div>
+
+    <!-- Login modal (OTP) -->
+    <div id="login" class="modal hide">
+      <form class="modal-card" id="loginFormStep1">
+        <h2>Sign In</h2>
+        <label>Email<input type="email" name="email" required></label>
+        <div class="row"><button type="submit">Send Code</button><button type="button" data-close>Cancel</button></div>
+      </form>
+      <form class="modal-card hide" id="loginFormStep2">
+        <h2>Enter Code</h2>
+        <input type="hidden" name="email">
+        <label>6‑digit code<input name="code" required pattern="\d{6}" maxlength="6"></label>
+        <div class="row"><button type="submit">Verify</button><button type="button" data-close>Cancel</button></div>
+      </form>
+    </div>
+
+    <!-- Profile modal -->
+    <div id="profile" class="modal hide">
+      <form class="modal-card" id="profileForm" enctype="multipart/form-data">
+        <h2>Profile</h2>
+        <label>Username<input name="username" maxlength="32" pattern="[A-Za-z0-9_]+"></label>
+        <label>Avatar (PNG/JPG)<input type="file" name="avatar" accept="image/png,image/jpeg"></label>
+        <label>Theme
+          <select name="theme">
+            <option value="">Theme</option>
+            <option value="original">Original</option>
+            <option value="red">Red</option>
+            <option value="pink">Pink</option>
+            <option value="purple">Purple</option>
+            <option value="babyblue">Baby Powder Blue</option>
+          </select>
+        </label>
+        <div class="row"><button type="submit">Save</button><button type="button" data-close>Close</button></div>
+      </form>
+    </div>
+
+    <!-- Help modal -->
+    <div id="help" class="modal hide">
+      <div class="modal-card">
+        <h2>How to Play</h2>
+        <div class="help-content">
+          <h3>🎮 Controls</h3>
+          <div class="controls-help">
+            <div><strong>Arrow Keys / D-Pad:</strong></div>
+            <div>← → Move piece left/right</div>
+            <div>↓ Soft drop (faster fall)</div>
+            <div>↑ Rotate piece</div>
+            <br>
+            <div><strong>Special Keys:</strong></div>
+            <div>Space / B Button: Hard drop (instant fall)</div>
+            <div>Shift / Select: Hold piece</div>
+            <div>Enter / Start: Pause game</div>
+          </div>
+
+          <h3>🎯 Objective</h3>
+          <div>Clear horizontal lines by filling them completely with pieces. Clear more lines at once for higher scores!</div>
+
+          <h3>🏆 Scoring</h3>
+          <div>
+            <div>1 line = 40 × level</div>
+            <div>2 lines = 100 × level</div>
+            <div>3 lines = 300 × level</div>
+            <div>4 lines (Tetris!) = 1200 × level</div>
+          </div>
+
+          <h3>⚡ Features</h3>
+          <div>
+            <div>• Free play for 5 minutes</div>
+            <div>• Sign in to save progress</div>
+            <div>• Multiple visual themes</div>
+            <div>• Achievement system</div>
+          </div>
+        </div>
+        <div class="row">
+          <button type="button" data-close>Got it!</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
