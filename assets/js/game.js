@@ -44,8 +44,12 @@ const scoreEl = document.getElementById('score');
 const levelEl = document.getElementById('level');
 const linesEl = document.getElementById('lines');
 
-let lastTick = 0; let dropInterval = TICK_BASE;
-let loggedIn = false; let saving = false;
+let lastTick = 0;
+let dropInterval = TICK_BASE;
+let loggedIn = false;
+let saving = false;
+let animationFrameId = null; // Track the animation frame ID
+let gameStarted = false; // Track if game has started
 
 function seedBag(){
   let b = ORDER.slice();
@@ -100,7 +104,10 @@ function clearLines(){
 }
 function hardDrop(){
   let moved=0; while(true){ state.cur.y++; if(collides(state.cur,state.grid)){ state.cur.y--; break; } moved++; }
-  state.score += 2*moved; unlockAward('SPEED_DEEMON');
+  if(moved > 0) {
+    state.score += 2*moved;
+    unlockAward('SPEED_DEEMON');
+  }
   lockPiece();
 }
 function lockPiece(){ merge(); clearLines(); spawn(); }
@@ -146,13 +153,29 @@ function drawMini(c2d, kind){
 }
 
 function gameLoop(t){
-  if(state.over){ return; }
-  if(state.paused){ requestAnimationFrame(gameLoop); return; }
-  if(!loggedIn && Date.now()>state.freeDeadline){ showModal('gate'); return; }
+  // Don't start game loop until loading screen is done
+  if(!gameStarted) {
+    animationFrameId = requestAnimationFrame(gameLoop);
+    return;
+  }
+  
+  if(state.over){
+    // Stop the game loop when game is over
+    return;
+  }
+  if(state.paused){
+    // Continue the loop but don't update
+    animationFrameId = requestAnimationFrame(gameLoop);
+    return;
+  }
+  if(!loggedIn && Date.now()>state.freeDeadline){
+    showModal('gate');
+    return;
+  }
   if(!lastTick) lastTick=t;
   if(t-lastTick >= dropInterval){ lastTick=t; soft(); }
   drawAll();
-  requestAnimationFrame(gameLoop);
+  animationFrameId = requestAnimationFrame(gameLoop);
 }
 
 function unlockAward(code){ if(!loggedIn) return; fetch('api/awards.php', {method:'POST', body: new URLSearchParams({code})}); }
@@ -216,6 +239,13 @@ function updateGameStatus(){
 }
 
 function restartGame(){
+  // Cancel any existing animation frame
+  if(animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+
+  // Reset state
   state = {
     grid: Array.from({length:H},()=>Array(W).fill(0)),
     bag:[],
@@ -226,11 +256,19 @@ function restartGame(){
     over:false, paused:false,
     freeDeadline: Date.now()+5*60*1000,
   };
+
+  // Reset timing
   dropInterval = TICK_BASE;
+  lastTick = 0;
+
+  // Initialize game
   seedBag();
   spawn();
   updateGameStatus();
   drawAll();
+
+  // Restart the game loop
+  animationFrameId = requestAnimationFrame(gameLoop);
 }
 
 function addVisualFeedback(element, type) {
@@ -339,15 +377,25 @@ function loadServerState(){ fetch('api/load_state.php').then(r=>r.json()).then((
 function compressState(){
   return {
     grid: state.grid,
-    cur: {kind:state.cur.kind,x:state.cur.x,y:state.cur.y,shape:state.cur.shape},
+    cur: state.cur ? {kind:state.cur.kind,x:state.cur.x,y:state.cur.y,shape:state.cur.shape} : null,
     hold: state.hold, bag: state.bag,
     score: state.score, lines: state.lines, level: state.level
   };
 }
 function restoreState(s){
-  state.grid = s.grid; state.cur = s.cur; state.hold=s.hold; state.bag=s.bag; state.score=s.score; state.lines=s.lines; state.level=s.level; dropInterval = Math.max(TICK_MIN, TICK_BASE - (state.level-1)*TICK_FALL); drawAll(); }
+  state.grid = s.grid;
+  state.cur = s.cur;
+  state.hold = s.hold;
+  state.bag = s.bag;
+  state.score = s.score;
+  state.lines = s.lines;
+  state.level = s.level;
+  dropInterval = Math.max(TICK_MIN, TICK_BASE - (state.level-1)*TICK_FALL);
+  drawAll();
+}
 
-window.addEventListener('blur', ()=>{ state.paused=true; saveServerState(); });
+window.addEventListener('blur', ()=>{ state.paused=true; saveServerState(); updateGameStatus(); });
+window.addEventListener('focus', ()=>{ if(state.paused && !state.over){ state.paused=false; updateGameStatus(); }});
 setInterval(saveServerState, 15000);
 
 function calculateViewportHeight() {
@@ -356,6 +404,19 @@ function calculateViewportHeight() {
   let vh = window.innerHeight * 0.01;
   document.documentElement.style.setProperty('--vh', `${vh}px`);
 }
+
+// Function to start the game (called by loading screen)
+function startGame() {
+  gameStarted = true;
+  seedBag();
+  spawn();
+  bindKeys();
+  setupAuth();
+  animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+// Expose startGame to global scope so loading screen can call it
+window.startTetrisGame = startGame;
 
 function init(){
   // Calculate viewport height on load and resize
@@ -377,7 +438,9 @@ function init(){
   }
   window.addEventListener('resize', fit);
   fit();
-  seedBag(); spawn(); bindKeys(); setupAuth(); requestAnimationFrame(gameLoop);
+  
+  // Start game loop but it won't actually run until gameStarted = true
+  animationFrameId = requestAnimationFrame(gameLoop);
 }
 
 init();

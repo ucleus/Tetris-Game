@@ -8,6 +8,543 @@
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
   <script defer src="assets/js/gb_shader.js"></script>
   <script defer src="assets/js/game.js"></script>
+  <style>
+/* Import a pixel/retro font */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* Loading Screen - keeping styles in head */
+#loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--lcd-light);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  transition: opacity 0.5s ease-out;
+  border-radius: 8px;
+}
+
+#loading-overlay.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-content {
+  text-align: center;
+  animation: fadeIn 0.8s ease-out;
+  padding: 20px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.title-ucleus {
+  font-size: clamp(32px, 8vw, 80px);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: var(--lcd-dark);
+  text-transform: uppercase;
+  margin-bottom: 15px;
+  position: relative;
+  font-family: 'Impact', 'Arial Black', sans-serif;
+  text-shadow: 
+    2px 2px 0 rgba(0,0,0,0.3),
+    4px 4px 0 rgba(0,0,0,0.2),
+    6px 6px 0 rgba(0,0,0,0.1),
+    8px 8px 15px rgba(0,0,0,0.4);
+  animation: titlePulse 2s ease-in-out infinite;
+}
+
+@keyframes titlePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.subtitle-tetris {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(10px, 2.5vw, 16px);
+  color: var(--lcd-dark);
+  letter-spacing: 0.1em;
+  margin-bottom: 30px;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+  animation: pixelGlitch 3s ease-in-out infinite;
+}
+
+@keyframes pixelGlitch {
+  0%, 90%, 100% { opacity: 1; }
+  93% { opacity: 0.8; }
+  96% { opacity: 1; }
+}
+
+.loading-bar-container {
+  width: min(250px, 80%);
+  height: 20px;
+  background: var(--lcd-dark);
+  border: 3px solid var(--lcd-dark);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+  margin: 0 auto;
+}
+
+.loading-bar {
+  height: 100%;
+  background: var(--lcd-light);
+  width: 0%;
+  transition: width 0.3s ease-out;
+  position: relative;
+  box-shadow: 0 0 10px var(--lcd-light);
+}
+
+.loading-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+  animation: shimmer 1s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.loading-blocks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.block {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  background: var(--lcd-dark);
+  border: 2px solid var(--lcd-light);
+  opacity: 0.2;
+  animation: blockFall linear infinite;
+}
+
+.block:nth-child(1) { left: 10%; animation-duration: 4s; animation-delay: 0s; }
+.block:nth-child(2) { left: 25%; animation-duration: 5s; animation-delay: 0.5s; }
+.block:nth-child(3) { left: 40%; animation-duration: 4.5s; animation-delay: 1s; }
+.block:nth-child(4) { left: 55%; animation-duration: 5.5s; animation-delay: 0.3s; }
+.block:nth-child(5) { left: 70%; animation-duration: 4.8s; animation-delay: 0.8s; }
+.block:nth-child(6) { left: 85%; animation-duration: 5.2s; animation-delay: 0.2s; }
+
+@keyframes blockFall {
+  0% { top: -40px; transform: rotate(0deg); }
+  100% { top: 100%; transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(8px, 1.8vw, 11px);
+  color: var(--lcd-dark);
+  margin-top: 15px;
+  animation: blink 1.5s infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.3; }
+}
+
+.loading-percentage {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(10px, 2vw, 14px);
+  color: var(--lcd-dark);
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+/* Profile Modal Styles */
+.profile-modal {
+  max-width: 600px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 2px solid var(--accent);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.profile-header h2 {
+  margin: 0;
+  color: var(--lcd-dark);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 32px;
+  cursor: pointer;
+  color: var(--lcd-dark);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: var(--lcd-light);
+  transform: rotate(90deg);
+}
+
+.profile-section {
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+.section-title {
+  margin: 0 0 16px 0;
+  color: var(--lcd-dark);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.avatar-section {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.avatar-display {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--lcd-dark);
+  flex-shrink: 0;
+  background: var(--lcd-light);
+}
+
+.avatar-display img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-basic-info h3 {
+  margin: 0 0 4px 0;
+  color: var(--lcd-dark);
+  font-size: 20px;
+}
+
+.user-basic-info p {
+  margin: 0 0 8px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.user-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--lcd-dark);
+  color: var(--lcd-light);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.stat-box {
+  background: var(--lcd-light);
+  padding: 16px;
+  border-radius: 8px;
+  text-align: center;
+  border: 2px solid var(--lcd-dark);
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--lcd-dark);
+  opacity: 0.8;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--lcd-dark);
+  font-family: 'Press Start 2P', monospace;
+}
+
+.detail-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  background: rgba(0,0,0,0.03);
+  border-radius: 6px;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: var(--lcd-dark);
+  font-size: 14px;
+}
+
+.detail-value {
+  color: #666;
+  font-size: 14px;
+  word-break: break-word;
+  text-align: right;
+  max-width: 60%;
+}
+
+.awards-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.award-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  background: var(--lcd-light);
+  border: 2px solid var(--lcd-dark);
+  border-radius: 8px;
+  min-width: 80px;
+  text-align: center;
+}
+
+.award-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.award-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lcd-dark);
+  margin-bottom: 4px;
+}
+
+.award-date {
+  font-size: 9px;
+  color: #666;
+}
+
+.no-awards {
+  color: #999;
+  font-style: italic;
+  padding: 20px;
+  text-align: center;
+  width: 100%;
+}
+
+.notification-section {
+  background: #f9f9f9;
+}
+
+.notifications-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.notification-card {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transition: transform 0.2s;
+}
+
+.notification-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.promo-card {
+  border: 2px solid var(--lcd-dark);
+}
+
+.promo-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.promo-content {
+  padding: 16px;
+}
+
+.promo-content h4 {
+  margin: 0 0 8px 0;
+  color: var(--lcd-dark);
+  font-size: 16px;
+}
+
+.promo-content p {
+  margin: 0 0 12px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.promo-btn {
+  background: var(--lcd-dark);
+  color: var(--lcd-light);
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.promo-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.ad-card {
+  position: relative;
+}
+
+.ad-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.ad-label {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.system-notification {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+}
+
+.notification-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.notification-content h4 {
+  margin: 0 0 4px 0;
+  color: var(--lcd-dark);
+  font-size: 14px;
+}
+
+.notification-content p {
+  margin: 0 0 8px 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.notification-time {
+  color: #999;
+  font-size: 11px;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 12px;
+  padding: 20px 24px;
+  background: var(--bg);
+  position: sticky;
+  bottom: 0;
+}
+
+.profile-actions button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--lcd-dark);
+  color: var(--lcd-light);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.btn-secondary {
+  background: var(--accent);
+  color: var(--ink);
+}
+
+.btn-secondary:hover {
+  background: var(--lcd-dark);
+  color: var(--lcd-light);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 480px) {
+  .profile-modal {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 0;
+  }
+  .avatar-section {
+    flex-direction: column;
+    text-align: center;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  .detail-item {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .detail-value {
+    text-align: left;
+    max-width: 100%;
+  }
+}
+</style>
 </head>
 <body class="theme-original">
   <div id="app">
@@ -16,10 +553,28 @@
         <div class="gb-speaker"></div>
       </div>
       <div class="gb-screen-wrap">
+        <div id="loading-overlay">
+          <div class="loading-blocks">
+            <div class="block"></div>
+            <div class="block"></div>
+            <div class="block"></div>
+            <div class="block"></div>
+            <div class="block"></div>
+            <div class="block"></div>
+          </div>
+          <div class="loading-content">
+            <h1 class="title-ucleus">UCLEUS</h1>
+            <p class="subtitle-tetris">TETRIS GAME</p>
+            <div class="loading-bar-container">
+              <div class="loading-bar" id="loading-bar"></div>
+            </div>
+            <p class="loading-percentage" id="loading-percentage">0%</p>
+            <p class="loading-text">LOADING...</p>
+          </div>
+        </div>
+
         <canvas id="tetris" width="160" height="144"></canvas>
-        <!-- Three.js screen effect overlay -->
         <div id="crt-overlay"></div>
-        <!-- Game status indicator -->
         <div id="game-status" class="game-status hide">
           <div class="title">PAUSED</div>
         </div>
@@ -36,7 +591,6 @@
         </div>
       </div>
 
-      <!-- Controls: D-Pad + A/B + Start/Select (touch-friendly) -->
       <div class="gb-controls">
         <div class="dpad">
           <button class="pad up" data-action="up" aria-label="Rotate piece">↑</button>
@@ -55,10 +609,9 @@
       </div>
     </div>
 
-    <!-- Top bar: auth, theme -->
     <div class="topbar">
       <div class="auth">
-        <span id="user-info" title="Current user"></span>
+        <span id="user-info" title="Click to view profile"></span>
         <button id="btn-help" title="Show game instructions">?</button>
         <button id="btn-login" title="Sign in with email">Login</button>
         <button id="btn-register" title="Create new account">Register</button>
@@ -76,7 +629,6 @@
       </div>
     </div>
 
-    <!-- Gate modal (5-min free play) -->
     <div id="gate" class="modal hide">
       <div class="modal-card">
         <h2>Time's up!</h2>
@@ -86,7 +638,6 @@
       </div>
     </div>
 
-    <!-- Register modal -->
     <div id="register" class="modal hide">
       <form class="modal-card" id="registerForm" enctype="multipart/form-data">
         <h2>Create Account</h2>
@@ -112,7 +663,6 @@
       </form>
     </div>
 
-    <!-- Login modal (OTP) -->
     <div id="login" class="modal hide">
       <form class="modal-card" id="loginFormStep1">
         <h2>Sign In</h2>
@@ -122,20 +672,143 @@
       <form class="modal-card hide" id="loginFormStep2">
         <h2>Enter Code</h2>
         <input type="hidden" name="email">
-        <label>6‑digit code<input name="code" required pattern="\d{6}" maxlength="6"></label>
+        <label>6-digit code<input name="code" required pattern="\d{6}" maxlength="6"></label>
         <div class="row"><button type="submit">Verify</button><button type="button" data-close>Cancel</button></div>
       </form>
     </div>
 
-    <!-- Profile modal -->
+    <!-- NEW DETAILED PROFILE MODAL -->
     <div id="profile" class="modal hide">
-      <form class="modal-card" id="profileForm" enctype="multipart/form-data">
-        <h2>Profile</h2>
-        <label>Username<input name="username" maxlength="32" pattern="[A-Za-z0-9_]+"></label>
-        <label>Avatar (PNG/JPG)<input type="file" name="avatar" accept="image/png,image/jpeg"></label>
+      <div class="modal-card profile-modal">
+        <div class="profile-header">
+          <h2>User Profile</h2>
+          <button class="close-btn" data-close aria-label="Close profile">×</button>
+        </div>
+
+        <div class="profile-section">
+          <div class="avatar-section">
+            <div class="avatar-display">
+              <img id="profile-avatar" src="assets/images/default_avatar.svg" alt="User avatar">
+            </div>
+            <div class="user-basic-info">
+              <h3 id="profile-username">Username</h3>
+              <p id="profile-email">email@example.com</p>
+              <span class="user-badge" id="profile-badge">Free Player</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-section">
+          <h3 class="section-title">Statistics</h3>
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="stat-label">High Score</div>
+              <div class="stat-value" id="stat-high-score">0</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Games Played</div>
+              <div class="stat-value" id="stat-games-played">0</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Total Lines</div>
+              <div class="stat-value" id="stat-total-lines">0</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Highest Level</div>
+              <div class="stat-value" id="stat-highest-level">1</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-section">
+          <h3 class="section-title">Account Details</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Real Name:</span>
+              <span class="detail-value" id="detail-real-name">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Username:</span>
+              <span class="detail-value" id="detail-username">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Email:</span>
+              <span class="detail-value" id="detail-email">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Theme:</span>
+              <span class="detail-value" id="detail-theme">Original</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Member Since:</span>
+              <span class="detail-value" id="detail-created-at">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Account Type:</span>
+              <span class="detail-value" id="detail-account-type">Free</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-section">
+          <h3 class="section-title">Achievements</h3>
+          <div class="awards-container" id="awards-container">
+            <div class="no-awards">No achievements unlocked yet. Keep playing!</div>
+          </div>
+        </div>
+
+        <div class="profile-section notification-section">
+          <h3 class="section-title">Notifications & Promotions</h3>
+          <div class="notifications-container">
+            <div class="notification-card promo-card">
+              <img src="https://via.placeholder.com/400x200/90A76B/0a3a03?text=Premium+Upgrade" 
+                   alt="Premium upgrade promotion" class="promo-image">
+              <div class="promo-content">
+                <h4>Upgrade to Premium!</h4>
+                <p>Unlock unlimited play time, exclusive themes, and priority support.</p>
+                <button class="promo-btn">Learn More</button>
+              </div>
+            </div>
+
+            <div class="notification-card ad-card">
+              <img src="https://via.placeholder.com/400x150/8A8D75/E0E4C0?text=New+Game+Coming+Soon" 
+                   alt="Advertisement" class="ad-image">
+              <div class="ad-label">Sponsored</div>
+            </div>
+
+            <div class="notification-card system-notification">
+              <div class="notification-icon">ℹ️</div>
+              <div class="notification-content">
+                <h4>Welcome to UCLEUS Tetris!</h4>
+                <p>Thanks for playing. Check out our new achievements system!</p>
+                <small class="notification-time">2 hours ago</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-actions">
+          <button type="button" class="btn-secondary" id="btn-edit-profile">Edit Profile</button>
+          <button type="button" class="btn-primary" data-close>Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="edit-profile" class="modal hide">
+      <form class="modal-card" id="editProfileForm" enctype="multipart/form-data">
+        <h2>Edit Profile</h2>
+        <label>Username
+          <input name="username" id="edit-username" maxlength="32" pattern="[A-Za-z0-9_]+" required>
+        </label>
+        <label>Real Name
+          <input name="real_name" id="edit-real-name" required>
+        </label>
+        <label>Avatar (PNG/JPG)
+          <input type="file" name="avatar" accept="image/png,image/jpeg">
+          <small>Current avatar will be replaced</small>
+        </label>
         <label>Theme
-          <select name="theme">
-            <option value="">Theme</option>
+          <select name="theme" id="edit-theme">
             <option value="original">Original</option>
             <option value="red">Red</option>
             <option value="pink">Pink</option>
@@ -143,16 +816,18 @@
             <option value="babyblue">Baby Powder Blue</option>
           </select>
         </label>
-        <div class="row"><button type="submit">Save</button><button type="button" data-close>Close</button></div>
+        <div class="row">
+          <button type="submit">Save Changes</button>
+          <button type="button" data-close>Cancel</button>
+        </div>
       </form>
     </div>
 
-    <!-- Help modal -->
     <div id="help" class="modal hide">
       <div class="modal-card">
         <h2>How to Play</h2>
         <div class="help-content">
-          <h3>🎮 Controls</h3>
+          <h3>Controls</h3>
           <div class="controls-help">
             <div><strong>Arrow Keys / D-Pad:</strong></div>
             <div>← → Move piece left/right</div>
@@ -165,10 +840,10 @@
             <div>Enter / Start: Pause game</div>
           </div>
 
-          <h3>🎯 Objective</h3>
+          <h3>Objective</h3>
           <div>Clear horizontal lines by filling them completely with pieces. Clear more lines at once for higher scores!</div>
 
-          <h3>🏆 Scoring</h3>
+          <h3>Scoring</h3>
           <div>
             <div>1 line = 40 × level</div>
             <div>2 lines = 100 × level</div>
@@ -176,7 +851,7 @@
             <div>4 lines (Tetris!) = 1200 × level</div>
           </div>
 
-          <h3>⚡ Features</h3>
+          <h3>Features</h3>
           <div>
             <div>• Free play for 5 minutes</div>
             <div>• Sign in to save progress</div>
@@ -190,5 +865,208 @@
       </div>
     </div>
   </div>
+
+<script>
+// Profile Modal JavaScript
+(function() {
+  const userInfo = document.getElementById('user-info');
+  if (userInfo) {
+    userInfo.style.cursor = 'pointer';
+    userInfo.addEventListener('click', openProfileModal);
+  }
+
+  const editBtn = document.getElementById('btn-edit-profile');
+  if (editBtn) {
+    editBtn.addEventListener('click', () => {
+      closeModal('profile');
+      showModal('edit-profile');
+      populateEditForm();
+    });
+  }
+
+  const editForm = document.getElementById('editProfileForm');
+  if (editForm) {
+    editForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = e.target.querySelector('[type="submit"]');
+      submitBtn.classList.add('loading');
+      
+      const fd = new FormData(e.target);
+      const res = await fetch('api/update_profile.php', {method:'POST', body: fd});
+      const j = await res.json();
+      
+      submitBtn.classList.remove('loading');
+      
+      if (j.ok) {
+        alert('Profile updated successfully!');
+        closeModal('edit-profile');
+        openProfileModal();
+      } else {
+        alert(j.error || 'Failed to update profile');
+      }
+    });
+  }
+
+  function openProfileModal() {
+    fetch('api/me.php')
+      .then(r => r.json())
+      .then(({user}) => {
+        if (!user) {
+          alert('Please log in to view your profile');
+          return;
+        }
+        
+        populateProfileData(user);
+        fetchUserStats(user.id);
+        fetchUserAwards(user.id);
+        showModal('profile');
+      })
+      .catch(err => {
+        console.error('Error loading profile:', err);
+        alert('Failed to load profile');
+      });
+  }
+
+  function populateProfileData(user) {
+    const avatar = document.getElementById('profile-avatar');
+    if (avatar) {
+      avatar.src = user.avatar_path || 'assets/images/default_avatar.svg';
+    }
+
+    setText('profile-username', user.username || 'User');
+    setText('profile-email', user.email || '');
+    setText('profile-badge', user.is_admin ? 'Admin' : 'Free Player');
+
+    setText('detail-real-name', user.real_name || '-');
+    setText('detail-username', user.username || '-');
+    setText('detail-email', user.email || '-');
+    setText('detail-theme', capitalizeFirst(user.theme || 'original'));
+    setText('detail-created-at', formatDate(user.created_at));
+    setText('detail-account-type', user.is_admin ? 'Admin' : 'Free');
+  }
+
+  function fetchUserStats(userId) {
+    const mockStats = {
+      high_score: 15420,
+      games_played: 47,
+      total_lines: 234,
+      highest_level: 8
+    };
+
+    setText('stat-high-score', mockStats.high_score.toLocaleString());
+    setText('stat-games-played', mockStats.games_played);
+    setText('stat-total-lines', mockStats.total_lines);
+    setText('stat-highest-level', mockStats.highest_level);
+  }
+
+  function fetchUserAwards(userId) {
+    fetch('api/awards.php')
+      .then(r => r.json())
+      .then(({awards}) => {
+        const container = document.getElementById('awards-container');
+        if (!container) return;
+
+        if (!awards || awards.length === 0) {
+          container.innerHTML = '<div class="no-awards">No achievements unlocked yet. Keep playing!</div>';
+          return;
+        }
+
+        container.innerHTML = awards.map(award => `
+          <div class="award-badge">
+            <div class="award-icon">🏆</div>
+            <div class="award-name">${award.name}</div>
+            <div class="award-date">${formatDate(award.unlocked_at)}</div>
+          </div>
+        `).join('');
+      })
+      .catch(err => {
+        console.error('Error loading awards:', err);
+      });
+  }
+
+  function populateEditForm() {
+    fetch('api/me.php')
+      .then(r => r.json())
+      .then(({user}) => {
+        if (!user) return;
+        
+        const form = document.getElementById('editProfileForm');
+        if (form) {
+          form.elements.username.value = user.username || '';
+          form.elements.real_name.value = user.real_name || '';
+          form.elements.theme.value = user.theme || 'original';
+        }
+      });
+  }
+
+  function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  }
+
+  function capitalizeFirst(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  function showModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.remove('hide');
+  }
+
+  function closeModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.add('hide');
+  }
+})();
+</script>
+
+<script>
+// Loading screen controller
+window.addEventListener('DOMContentLoaded', () => {
+  const loadingOverlay = document.getElementById('loading-overlay');
+  const loadingBar = document.getElementById('loading-bar');
+  const loadingPercentage = document.getElementById('loading-percentage');
+  
+  let progress = 0;
+  const duration = 15000;
+  const interval = 50;
+  const increment = (interval / duration) * 100;
+  
+  const loadingInterval = setInterval(() => {
+    progress += increment;
+    
+    if (progress >= 100) {
+      progress = 100;
+      clearInterval(loadingInterval);
+      
+      setTimeout(() => {
+        loadingOverlay.classList.add('hide');
+        
+        if (window.startTetrisGame) {
+          window.startTetrisGame();
+        }
+        
+        setTimeout(() => {
+          loadingOverlay.remove();
+        }, 500);
+      }, 500);
+    }
+    
+    loadingBar.style.width = progress + '%';
+    loadingPercentage.textContent = Math.floor(progress) + '%';
+  }, interval);
+});
+</script>
+
 </body>
 </html>
